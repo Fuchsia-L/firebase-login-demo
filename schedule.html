@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>时间表</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="schedule-page">
+    <header class="schedule-header">
+        <div>
+            <p class="eyebrow">今日视图</p>
+            <h1>时间表</h1>
+        </div>
+        <div class="user-meta">
+            <span id="user-email"></span>
+            <button id="logout-btn" class="ghost-btn">登出</button>
+        </div>
+    </header>
+
+    <main class="schedule-layout">
+        <section class="timetable" aria-label="周一到周五时间表">
+            <div class="timetable-body">
+                <div class="time-col">
+                    <div class="time-cell time-head"></div>
+                    <div class="time-cell major">06:00</div>
+                    <div class="time-cell minor">07:00</div>
+                    <div class="time-cell minor">08:00</div>
+                    <div class="time-cell major">09:00</div>
+                    <div class="time-cell minor">10:00</div>
+                    <div class="time-cell minor">11:00</div>
+                    <div class="time-cell major">12:00</div>
+                    <div class="time-cell minor">13:00</div>
+                    <div class="time-cell minor">14:00</div>
+                    <div class="time-cell major">15:00</div>
+                    <div class="time-cell minor">16:00</div>
+                    <div class="time-cell minor">17:00</div>
+                    <div class="time-cell major">18:00</div>
+                    <div class="time-cell minor">19:00</div>
+                    <div class="time-cell minor">20:00</div>
+                    <div class="time-cell major">21:00</div>
+                    <div class="time-cell minor">22:00</div>
+                    <div class="time-cell minor">23:00</div>
+                    <div class="time-cell major">24:00</div>
+                </div>
+                <div class="days-grid">
+                    <div class="day-head">周一</div>
+                    <div class="day-head">周二</div>
+                    <div class="day-head">周三</div>
+                    <div class="day-head">周四</div>
+                    <div class="day-head">周五</div>
+                    <!-- rows -->
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+                </div>
+                <div class="events-layer" id="events-layer" aria-hidden="true"></div>
+            </div>
+        </section>
+
+        <div class="mid-toolbar">
+            <div class="toolbar-actions">
+                <button id="toggle-form" type="button">添加事件</button>
+                <button id="clear-events" type="button" class="ghost-btn">清空事件</button>
+            </div>
+            <form id="event-form" class="hidden">
+                <div class="form-head">
+                    <span>新事件</span>
+                    <button type="button" id="close-form" class="icon-btn" aria-label="关闭表单">×</button>
+                </div>
+                <label>
+                    星期
+                    <select id="weekday">
+                        <option value="1">周一</option>
+                        <option value="2">周二</option>
+                        <option value="3">周三</option>
+                        <option value="4">周四</option>
+                        <option value="5">周五</option>
+                    </select>
+                </label>
+                <label>
+                    开始
+                    <input id="start-time" type="time" min="06:00" max="24:00" step="300" required>
+                </label>
+                <label>
+                    结束
+                    <input id="end-time" type="time" min="06:00" max="24:00" step="300" required>
+                </label>
+                <label>
+                    地点/内容
+                    <input id="location" type="text" placeholder="例如：图书馆" required>
+                </label>
+                <button type="submit">确认添加</button>
+            </form>
+        </div>
+
+        <aside class="tasks" aria-label="任务清单">
+            <div class="tasks-head">
+                <h3>任务清单</h3>
+                <button class="text-link small" id="add-task-btn" type="button">新增</button>
+            </div>
+            <ul class="task-list" id="task-list"></ul>
+        </aside>
+    </main>
+
+    <div id="task-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-task-title"></h3>
+                <button id="modal-close" class="icon-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="timer-display">
+                    <span id="timer-label">计时器</span>
+                    <strong id="timer-value">00:00:00</strong>
+                </div>
+                <div class="timer-actions">
+                    <button id="start-timer" type="button">开始计时</button>
+                    <button id="pause-timer" type="button" class="hidden">暂停计时</button>
+                    <button id="resume-timer" type="button" class="hidden">继续计时</button>
+                    <button id="stop-timer" type="button" class="hidden ghost-btn">结束计时</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <div>加载中，请稍候…</div>
+    </div>
+
+    <script type="module" src="schedule.js"></script>
+</body>
+</html>
