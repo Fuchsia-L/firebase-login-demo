@@ -40,7 +40,6 @@
                     <div class="time-cell major">21:00</div>
                     <div class="time-cell minor">22:00</div>
                     <div class="time-cell minor">23:00</div>
-                    <div class="time-cell major">24:00</div>
                 </div>
                 <div class="days-grid">
                     <div class="day-head">周一</div>
@@ -49,7 +48,6 @@
                     <div class="day-head">周四</div>
                     <div class="day-head">周五</div>
                     <!-- rows -->
-                    <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
                     <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
                     <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
                     <div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
@@ -102,8 +100,16 @@
                     <input id="end-time" type="time" min="06:00" max="24:00" step="300" required>
                 </label>
                 <label>
-                    地点/内容
-                    <input id="location" type="text" placeholder="例如：图书馆" required>
+                    内容
+                    <input id="content" type="text" placeholder="例如：数学自习" required>
+                </label>
+                <label>
+                    地点
+                    <input id="location" type="text" placeholder="例如：图书馆自习室" required>
+                </label>
+                <label>
+                    备注（可选）
+                    <input id="note" type="text" placeholder="例如：自习资料、携带设备等">
                 </label>
                 <button type="submit">确认添加</button>
             </form>
@@ -136,6 +142,25 @@
                     <button id="resume-timer" type="button" class="hidden">继续计时</button>
                     <button id="stop-timer" type="button" class="hidden ghost-btn">结束计时</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="event-modal" class="modal hidden">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="event-modal-title"></h3>
+                <button id="event-modal-close" class="icon-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <div><strong>时间：</strong><span id="event-modal-time"></span></div>
+                <div><strong>地点：</strong><span id="event-modal-location"></span></div>
+                <div><strong>备注：</strong><span id="event-modal-note"></span></div>
+            </div>
+            <div class="timer-actions">
+                <button id="event-modal-edit" type="button">修改事件</button>
+                <button id="event-modal-delete" type="button" class="ghost-btn">删除事件</button>
             </div>
         </div>
     </div>

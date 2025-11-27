@@ -76,9 +76,8 @@ document.getElementById("login-btn").onclick = async () => {
 
 onAuthStateChanged(auth, user => {
     if (user) {
-        authContainer.style.display = "none";
-        userInfo.style.display = "block";
-        userEmail.innerText = copy.currentUser + user.email;
+        // 已登录用户直接进入课表
+        window.location.href = "schedule.html";
     } else {
         authContainer.style.display = "block";
         userInfo.style.display = "none";

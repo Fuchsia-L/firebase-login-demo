@@ -36,7 +36,9 @@ const eventsLayer = document.getElementById("events-layer");
 const weekdaySelect = document.getElementById("weekday");
 const startInput = document.getElementById("start-time");
 const endInput = document.getElementById("end-time");
+const contentInput = document.getElementById("content");
 const locationInput = document.getElementById("location");
+const noteInput = document.getElementById("note");
 const eventForm = document.getElementById("event-form");
 const toggleFormBtn = document.getElementById("toggle-form");
 const closeFormBtn = document.getElementById("close-form");
@@ -54,6 +56,15 @@ const pauseBtn = document.getElementById("pause-timer");
 const resumeBtn = document.getElementById("resume-timer");
 const stopBtn = document.getElementById("stop-timer");
 const loadingOverlay = document.getElementById("loading-overlay");
+const eventModal = document.getElementById("event-modal");
+const eventModalClose = document.getElementById("event-modal-close");
+const eventModalTitle = document.getElementById("event-modal-title");
+const eventModalTime = document.getElementById("event-modal-time");
+const eventModalLocation = document.getElementById("event-modal-location");
+const eventModalNote = document.getElementById("event-modal-note");
+const eventModalEdit = document.getElementById("event-modal-edit");
+const eventModalDelete = document.getElementById("event-modal-delete");
+let currentModalEvent = null;
 
 let events = [];
 const DAY_WIDTH = 100 / 5;
@@ -64,6 +75,7 @@ let eventsUnsub = null;
 let tasksUnsub = null;
 let firstEventsLoaded = false;
 let firstTasksLoaded = false;
+let editingEventId = null;
 
 let timerState = {
     taskEl: null,
@@ -108,8 +120,8 @@ const parseTime = value => {
     return h * 60 + m;
 };
 
-const hasConflict = (day, start, end) =>
-    events.some(ev => ev.day === day && !(end <= ev.start || start >= ev.end));
+const hasConflict = (day, start, end, ignoreId = null) =>
+    events.some(ev => ev.day === day && ev.id !== ignoreId && !(end <= ev.start || start >= ev.end));
 
 const renderEvents = () => {
     const layerHeight = eventsLayer.clientHeight || 1;
@@ -125,7 +137,9 @@ const renderEvents = () => {
         block.style.height = `${heightPx}px`;
         block.style.left = `calc(${leftPct}% + 4px)`;
         block.style.width = `calc(${DAY_WIDTH}% - 8px)`;
-        block.innerHTML = `<strong>${ev.location}</strong><span>${ev.startLabel} - ${ev.endLabel}</span>`;
+        const title = ev.content || "未填写内容";
+        const locLabel = ev.location ? ev.location : "未填写地点";
+        block.innerHTML = `<strong>${title}</strong><span>${ev.startLabel} - ${ev.endLabel}</span><span class="location-line">${locLabel}</span>`;
 
         let pressTimer = null;
         const startPress = () => {
@@ -149,6 +163,7 @@ const renderEvents = () => {
         ["mouseup", "mouseleave", "touchend", "touchcancel"].forEach(evt =>
             block.addEventListener(evt, clearPress)
         );
+        block.addEventListener("click", () => openEventDetail(ev));
 
         eventsLayer.appendChild(block);
     });
@@ -159,10 +174,12 @@ eventForm.addEventListener("submit", e => {
     const day = Number(weekdaySelect.value);
     const startVal = startInput.value;
     const endVal = endInput.value;
+    const content = contentInput.value.trim();
     const location = locationInput.value.trim();
+    const note = noteInput.value.trim();
 
-    if (!startVal || !endVal || !location) {
-        alert("请填写完整时间与地点");
+    if (!startVal || !endVal || !content || !location) {
+        alert("请填写完整时间、内容与地点");
         return;
     }
 
@@ -174,26 +191,47 @@ eventForm.addEventListener("submit", e => {
         return;
     }
 
-    if (hasConflict(day, start, end)) {
+    if (hasConflict(day, start, end, editingEventId)) {
         alert("与已有事件时间冲突，请调整");
         return;
     }
 
-    const newRef = push(ref(db, `users/${currentUserId}/events`));
-    set(newRef, {
-        day,
-        start,
-        end,
-        location,
-        startLabel: startVal,
-        endLabel: endVal,
-        createdAt: Date.now()
-    })
-        .then(() => {
-            eventForm.reset();
-            hideForm();
+    if (editingEventId) {
+        update(ref(db, `users/${currentUserId}/events/${editingEventId}`), {
+            day,
+            start,
+            end,
+            content,
+            location,
+            note,
+            startLabel: startVal,
+            endLabel: endVal
         })
-        .catch(err => alert("保存失败：" + err.message));
+            .then(() => {
+                editingEventId = null;
+                eventForm.reset();
+                hideForm();
+            })
+            .catch(err => alert("保存失败：" + err.message));
+    } else {
+        const newRef = push(ref(db, `users/${currentUserId}/events`));
+        set(newRef, {
+            day,
+            start,
+            end,
+            content,
+            location,
+            note,
+            startLabel: startVal,
+            endLabel: endVal,
+            createdAt: Date.now()
+        })
+            .then(() => {
+                eventForm.reset();
+                hideForm();
+            })
+            .catch(err => alert("保存失败：" + err.message));
+    }
 });
 
 window.addEventListener("resize", renderEvents);
@@ -359,6 +397,47 @@ const createTaskItem = task => {
     return li;
 };
 
+const openEventDetail = ev => {
+    currentModalEvent = ev;
+    eventModalTitle.textContent = ev.content || "未填写内容";
+    eventModalTime.textContent = `${ev.startLabel} - ${ev.endLabel}`;
+    eventModalLocation.textContent = ev.location || "未填写地点";
+    eventModalNote.textContent = ev.note ? ev.note : "无备注";
+    eventModal.classList.remove("hidden");
+};
+
+const closeEventDetail = () => {
+    currentModalEvent = null;
+    eventModal.classList.add("hidden");
+};
+
+eventModalClose.addEventListener("click", closeEventDetail);
+eventModal.querySelector(".modal-backdrop").addEventListener("click", closeEventDetail);
+
+eventModalEdit.addEventListener("click", () => {
+    if (!currentModalEvent) return;
+    const ev = currentModalEvent;
+    weekdaySelect.value = String(ev.day);
+    startInput.value = ev.startLabel;
+    endInput.value = ev.endLabel;
+    contentInput.value = ev.content || "";
+    locationInput.value = ev.location || "";
+    noteInput.value = ev.note || "";
+    editingEventId = ev.id;
+    showForm();
+    closeEventDetail();
+});
+
+eventModalDelete.addEventListener("click", () => {
+    if (!currentModalEvent || !currentModalEvent.id) return;
+    const ok = confirm("确认删除该事件？");
+    if (!ok) return;
+    remove(ref(db, `users/${currentUserId}/events/${currentModalEvent.id}`)).catch(err =>
+        alert("删除失败：" + err.message)
+    );
+    closeEventDetail();
+});
+
 const subscribeEvents = uid => {
     if (eventsUnsub) eventsUnsub();
     const q = query(ref(db, `users/${uid}/events`), orderByChild("start"));
@@ -373,7 +452,9 @@ const subscribeEvents = uid => {
                     day: Number(data.day),
                     start: Number(data.start),
                     end: Number(data.end),
+                    content: data.content,
                     location: data.location,
+                    note: data.note,
                     startLabel: data.startLabel,
                     endLabel: data.endLabel
                 });
