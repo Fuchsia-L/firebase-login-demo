@@ -88,6 +88,38 @@ h2 {
     }
 }
 
+/* Mobile tweaks */
+@media (max-width: 768px) {
+    .schedule-header,
+    .mid-toolbar {
+        width: 100%;
+    }
+
+    .timetable {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .timetable-body {
+        overflow-x: auto;
+    }
+
+    .time-col {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+    }
+
+    .days-grid {
+        min-width: 720px;
+    }
+
+    .events-layer {
+        min-width: 720px;
+        right: auto;
+    }
+}
+
 .schedule-page {
     padding: 24px 16px 16px;
     justify-content: flex-start;

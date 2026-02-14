@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 测试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .endpoint {
+            background: #f7f7f7;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .endpoint code {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        .response {
+            background: #f7f7f7;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .response pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .task-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .task-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-partial {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-done {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .task-time {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 2rem;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 待办事项 API 测试</h1>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="total-count">-</div>
+                <div class="stat-label">总任务数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="pending-count">-</div>
+                <div class="stat-label">待完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="partial-count">-</div>
+                <div class="stat-label">部分完成</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="done-count">-</div>
+                <div class="stat-label">已完成</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🚀 可用接口</h2>
+
+            <div class="endpoint">
+                <code>GET /api/health</code>
+                <button onclick="testHealth()">测试</button>
+            </div>
+
+            <div class="endpoint">
+                <code>GET /api/tasks</code>
+                <button onclick="getAllTasks()">获取所有</button>
+            </div>
+
+            <div class="endpoint">
+                <code>GET /api/tasks/status/pending</code>
+                <button onclick="getTasksByStatus('pending')">待完成</button>
+            </div>
+
+            <div class="endpoint">
+                <code>GET /api/tasks/status/partial</code>
+                <button onclick="getTasksByStatus('partial')">部分完成</button>
+            </div>
+
+            <div class="endpoint">
+                <code>GET /api/tasks/status/done</code>
+                <button onclick="getTasksByStatus('done')">已完成</button>
+            </div>
+
+            <div id="response" class="response" style="display: none;">
+                <pre id="response-text"></pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 待办事项列表</h2>
+            <div id="tasks-list">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+
+        function showResponse(data) {
+            const responseDiv = document.getElementById('response');
+            const responseText = document.getElementById('response-text');
+            responseText.textContent = JSON.stringify(data, null, 2);
+            responseDiv.style.display = 'block';
+        }
+
+        function showError(message) {
+            const responseDiv = document.getElementById('response');
+            const responseText = document.getElementById('response-text');
+            responseText.innerHTML = `<div class="error">❌ 错误: ${message}</div>`;
+            responseDiv.style.display = 'block';
+        }
+
+        async function testHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function getAllTasks() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks`);
+                const data = await response.json();
+                showResponse(data);
+                renderTasks(data.data);
+                updateStats(data.data);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function getTasksByStatus(status) {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/status/${status}`);
+                const data = await response.json();
+                showResponse(data);
+                renderTasks(data.data);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function renderTasks(tasks) {
+            const container = document.getElementById('tasks-list');
+
+            if (tasks.length === 0) {
+                container.innerHTML = '<div class="loading">暂无任务</div>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="task-card">
+                    <div class="task-header">
+                        <div class="task-title">${task.title}</div>
+                        <span class="status-badge status-${task.status}">${task.statusText}</span>
+                    </div>
+                    <div class="task-time">⏱️ 已用时: ${task.elapsedFormatted}</div>
+                </div>
+            `).join('');
+        }
+
+        function updateStats(tasks) {
+            const total = tasks.length;
+            const pending = tasks.filter(t => t.status === 'pending').length;
+            const partial = tasks.filter(t => t.status === 'partial').length;
+            const done = tasks.filter(t => t.status === 'done').length;
+
+            document.getElementById('total-count').textContent = total;
+            document.getElementById('pending-count').textContent = pending;
+            document.getElementById('partial-count').textContent = partial;
+            document.getElementById('done-count').textContent = done;
+        }
+
+        // 页面加载时自动获取所有任务
+        window.addEventListener('load', getAllTasks);
+    </script>
+</body>
+</html>
