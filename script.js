@@ -25,20 +25,18 @@ const showBox = mode => {
     }
 };
 
-// 检查登录状态
+// 检查登录状态 — 有 token 直接跳转到日程页
 const checkAuth = () => {
     const token = localStorage.getItem('token');
     const email = localStorage.getItem('email');
 
     if (token && email) {
-        authContainer.style.display = "none";
-        userInfo.style.display = "block";
-        userEmail.innerText = copy.currentUser + email;
-    } else {
-        authContainer.style.display = "block";
-        userInfo.style.display = "none";
-        showBox("login");
+        window.location.href = "schedule.html";
+        return;
     }
+    authContainer.style.display = "block";
+    userInfo.style.display = "none";
+    showBox("login");
 };
 
 document.getElementById("to-signup").onclick = () => showBox("signup");

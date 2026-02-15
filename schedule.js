@@ -1,8 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
 import {
     getAuth,
-    onAuthStateChanged,
-    signOut
+    signInAnonymously
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
     getDatabase,
@@ -81,26 +80,42 @@ let timerState = {
 const showForm = () => eventForm.classList.remove("hidden");
 const hideForm = () => eventForm.classList.add("hidden");
 
-// ==================== 认证检查 ====================
-onAuthStateChanged(auth, user => {
-    if (!user) {
+// ==================== 认证检查（基于 localStorage token）====================
+const initPage = async () => {
+    const token = getToken();
+    const email = localStorage.getItem('email');
+
+    if (!token || !email) {
         window.location.href = "index.html";
         return;
     }
+
+    // 用邮箱作为 Firebase 路径 key（替换特殊字符）
+    currentUserId = email.replace(/[.@]/g, '_');
+    userEmail.textContent = email;
+
     firstEventsLoaded = false;
     firstTasksLoaded = false;
     loadingOverlay.classList.remove("hidden");
-    currentUserId = user.uid;
-    userEmail.textContent = user.email;
-    subscribeEvents(user.uid);
-    loadTasksFromAPI(); // 任务从 REST API 加载
-});
+
+    // Firebase 匿名登录（仅用于日程事件的读写权限）
+    try {
+        await signInAnonymously(auth);
+    } catch (e) {
+        console.warn('Firebase 匿名登录失败，日程功能可能受限:', e.message);
+    }
+
+    subscribeEvents(currentUserId);
+    loadTasksFromAPI();
+};
 
 document.getElementById("logout-btn").onclick = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('email');
-    signOut(auth);
+    window.location.href = "index.html";
 };
+
+initPage();
 
 // ==================== 日程事件管理（继续用 Firebase）====================
 
