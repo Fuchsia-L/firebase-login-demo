@@ -11,7 +11,7 @@ const app = express();
 // CORS 配置
 const allowedOrigins = process.env.CORS_ALLOW_ORIGINS
     ? process.env.CORS_ALLOW_ORIGINS.split(',')
-    : ['http://localhost:3000', 'https://servicewechat.com'];
+    : ['http://localhost:3000', 'https://servicewechat.com', 'https://fuchsia-l.github.io'];
 
 app.use(cors({
     origin: function (origin, callback) {
