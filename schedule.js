@@ -16,6 +16,7 @@ import {
     orderByChild
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
 
+// Firebase 配置（日程事件继续用 Firebase）
 const firebaseConfig = {
     apiKey: "AIzaSyAi8CZBjKXZ_ihjyqXNPtr5zIP21XALJpA",
     authDomain: "study-track-8d73f.firebaseapp.com",
@@ -31,14 +32,16 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// REST API 配置（任务管理用 REST API）
+const API_BASE = 'https://firebase-login-demo.vercel.app/api';
+const getToken = () => localStorage.getItem('token');
+
 const userEmail = document.getElementById("user-email");
 const eventsLayer = document.getElementById("events-layer");
 const weekdaySelect = document.getElementById("weekday");
 const startInput = document.getElementById("start-time");
 const endInput = document.getElementById("end-time");
-const contentInput = document.getElementById("content");
 const locationInput = document.getElementById("location");
-const noteInput = document.getElementById("note");
 const eventForm = document.getElementById("event-form");
 const toggleFormBtn = document.getElementById("toggle-form");
 const closeFormBtn = document.getElementById("close-form");
@@ -56,15 +59,6 @@ const pauseBtn = document.getElementById("pause-timer");
 const resumeBtn = document.getElementById("resume-timer");
 const stopBtn = document.getElementById("stop-timer");
 const loadingOverlay = document.getElementById("loading-overlay");
-const eventModal = document.getElementById("event-modal");
-const eventModalClose = document.getElementById("event-modal-close");
-const eventModalTitle = document.getElementById("event-modal-title");
-const eventModalTime = document.getElementById("event-modal-time");
-const eventModalLocation = document.getElementById("event-modal-location");
-const eventModalNote = document.getElementById("event-modal-note");
-const eventModalEdit = document.getElementById("event-modal-edit");
-const eventModalDelete = document.getElementById("event-modal-delete");
-let currentModalEvent = null;
 
 let events = [];
 const DAY_WIDTH = 100 / 5;
@@ -72,14 +66,13 @@ const BASE_MINUTES = 6 * 60;
 const TOTAL_MINUTES = (24 - 6) * 60;
 let currentUserId = null;
 let eventsUnsub = null;
-let tasksUnsub = null;
 let firstEventsLoaded = false;
 let firstTasksLoaded = false;
-let editingEventId = null;
 
 let timerState = {
+    taskId: null,
     taskEl: null,
-    status: "idle", // idle | running | paused
+    status: "idle",
     startTime: 0,
     elapsed: 0,
     rafId: null
@@ -88,6 +81,7 @@ let timerState = {
 const showForm = () => eventForm.classList.remove("hidden");
 const hideForm = () => eventForm.classList.add("hidden");
 
+// ==================== 认证检查 ====================
 onAuthStateChanged(auth, user => {
     if (!user) {
         window.location.href = "index.html";
@@ -99,10 +93,16 @@ onAuthStateChanged(auth, user => {
     currentUserId = user.uid;
     userEmail.textContent = user.email;
     subscribeEvents(user.uid);
-    subscribeTasks(user.uid);
+    loadTasksFromAPI(); // 任务从 REST API 加载
 });
 
-document.getElementById("logout-btn").onclick = () => signOut(auth);
+document.getElementById("logout-btn").onclick = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('email');
+    signOut(auth);
+};
+
+// ==================== 日程事件管理（继续用 Firebase）====================
 
 toggleFormBtn.addEventListener("click", showForm);
 closeFormBtn.addEventListener("click", hideForm);
@@ -120,8 +120,8 @@ const parseTime = value => {
     return h * 60 + m;
 };
 
-const hasConflict = (day, start, end, ignoreId = null) =>
-    events.some(ev => ev.day === day && ev.id !== ignoreId && !(end <= ev.start || start >= ev.end));
+const hasConflict = (day, start, end) =>
+    events.some(ev => ev.day === day && !(end <= ev.start || start >= ev.end));
 
 const renderEvents = () => {
     const layerHeight = eventsLayer.clientHeight || 1;
@@ -137,9 +137,7 @@ const renderEvents = () => {
         block.style.height = `${heightPx}px`;
         block.style.left = `calc(${leftPct}% + 4px)`;
         block.style.width = `calc(${DAY_WIDTH}% - 8px)`;
-        const title = ev.content || "未填写内容";
-        const locLabel = ev.location ? ev.location : "未填写地点";
-        block.innerHTML = `<strong>${title}</strong><span>${ev.startLabel} - ${ev.endLabel}</span><span class="location-line">${locLabel}</span>`;
+        block.innerHTML = `<strong>${ev.location}</strong><span>${ev.startLabel} - ${ev.endLabel}</span>`;
 
         let pressTimer = null;
         const startPress = () => {
@@ -163,7 +161,6 @@ const renderEvents = () => {
         ["mouseup", "mouseleave", "touchend", "touchcancel"].forEach(evt =>
             block.addEventListener(evt, clearPress)
         );
-        block.addEventListener("click", () => openEventDetail(ev));
 
         eventsLayer.appendChild(block);
     });
@@ -174,12 +171,10 @@ eventForm.addEventListener("submit", e => {
     const day = Number(weekdaySelect.value);
     const startVal = startInput.value;
     const endVal = endInput.value;
-    const content = contentInput.value.trim();
     const location = locationInput.value.trim();
-    const note = noteInput.value.trim();
 
-    if (!startVal || !endVal || !content || !location) {
-        alert("请填写完整时间、内容与地点");
+    if (!startVal || !endVal || !location) {
+        alert("请填写完整时间与地点");
         return;
     }
 
@@ -191,62 +186,61 @@ eventForm.addEventListener("submit", e => {
         return;
     }
 
-    if (hasConflict(day, start, end, editingEventId)) {
+    if (hasConflict(day, start, end)) {
         alert("与已有事件时间冲突，请调整");
         return;
     }
 
-    if (editingEventId) {
-        update(ref(db, `users/${currentUserId}/events/${editingEventId}`), {
-            day,
-            start,
-            end,
-            content,
-            location,
-            note,
-            startLabel: startVal,
-            endLabel: endVal
+    const newRef = push(ref(db, `users/${currentUserId}/events`));
+    set(newRef, {
+        day,
+        start,
+        end,
+        location,
+        startLabel: startVal,
+        endLabel: endVal,
+        createdAt: Date.now()
+    })
+        .then(() => {
+            eventForm.reset();
+            hideForm();
         })
-            .then(() => {
-                editingEventId = null;
-                eventForm.reset();
-                hideForm();
-            })
-            .catch(err => alert("保存失败：" + err.message));
-    } else {
-        const newRef = push(ref(db, `users/${currentUserId}/events`));
-        set(newRef, {
-            day,
-            start,
-            end,
-            content,
-            location,
-            note,
-            startLabel: startVal,
-            endLabel: endVal,
-            createdAt: Date.now()
-        })
-            .then(() => {
-                eventForm.reset();
-                hideForm();
-            })
-            .catch(err => alert("保存失败：" + err.message));
-    }
+        .catch(err => alert("保存失败：" + err.message));
 });
 
 window.addEventListener("resize", renderEvents);
 
-addTaskBtn.addEventListener("click", () => {
-    const text = prompt("输入新任务内容：");
-    if (!text || !text.trim()) return;
-    const newRef = push(ref(db, `users/${currentUserId}/tasks`));
-    set(newRef, {
-        title: text.trim(),
-        status: "pending",
-        elapsed: 0,
-        createdAt: Date.now()
-    }).catch(err => alert("新增任务失败：" + err.message));
-});
+const subscribeEvents = uid => {
+    if (eventsUnsub) eventsUnsub();
+    const q = query(ref(db, `users/${uid}/events`), orderByChild("start"));
+    eventsUnsub = onValue(
+        q,
+        snap => {
+            const list = [];
+            snap.forEach(child => {
+                const data = child.val();
+                list.push({
+                    id: child.key,
+                    day: Number(data.day),
+                    start: Number(data.start),
+                    end: Number(data.end),
+                    location: data.location,
+                    startLabel: data.startLabel,
+                    endLabel: data.endLabel
+                });
+            });
+            events = list;
+            renderEvents();
+            if (!firstEventsLoaded) {
+                firstEventsLoaded = true;
+                if (firstTasksLoaded) loadingOverlay.classList.add("hidden");
+            }
+        },
+        err => alert("加载事件失败：" + err.message)
+    );
+};
+
+// ==================== 任务管理（改用 REST API）====================
 
 const formatTime = ms => {
     const totalSec = Math.floor(ms / 1000);
@@ -255,6 +249,71 @@ const formatTime = ms => {
     const s = String(totalSec % 60).padStart(2, "0");
     return `${h}:${m}:${s}`;
 };
+
+const apiRequest = async (endpoint, options = {}) => {
+    const token = getToken();
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers
+        }
+    });
+    const data = await response.json();
+    if (!data.success) throw new Error(data.message || '请求失败');
+    return data;
+};
+
+const loadTasksFromAPI = async () => {
+    try {
+        const data = await apiRequest('/tasks');
+        renderTasks(data.data);
+        if (!firstTasksLoaded) {
+            firstTasksLoaded = true;
+            if (firstEventsLoaded) loadingOverlay.classList.add("hidden");
+        }
+    } catch (err) {
+        alert('加载任务失败：' + err.message);
+        firstTasksLoaded = true;
+        if (firstEventsLoaded) loadingOverlay.classList.add("hidden");
+    }
+};
+
+const renderTasks = tasks => {
+    taskList.innerHTML = "";
+    const priority = { pending: 1, partial: 2, done: 3 };
+    tasks.sort((a, b) => priority[a.status] - priority[b.status]);
+    tasks.forEach(task => taskList.appendChild(createTaskItem(task)));
+};
+
+const createTaskItem = task => {
+    const li = document.createElement("li");
+    li.dataset.status = task.status || "pending";
+    li.dataset.elapsed = String(task.elapsed || 0);
+    li.dataset.id = task.id;
+    const statusText = task.status === "done" ? "已完成" : task.status === "partial" ? "部分完成" : "未完成";
+    li.innerHTML = `<span class="task-title">${task.title}</span><span class="time-chip">${formatTime(
+        task.elapsed || 0
+    )}</span><span class="tag status ${task.status}">${statusText}</span>`;
+    return li;
+};
+
+addTaskBtn.addEventListener("click", async () => {
+    const text = prompt("输入新任务内容：");
+    if (!text || !text.trim()) return;
+    try {
+        await apiRequest('/tasks', {
+            method: 'POST',
+            body: JSON.stringify({ title: text.trim() })
+        });
+        await loadTasksFromAPI();
+    } catch (err) {
+        alert("新增任务失败：" + err.message);
+    }
+});
+
+// ==================== 计时器 ====================
 
 const drawTimer = () => {
     timerValue.textContent = formatTime(timerState.elapsed);
@@ -271,7 +330,7 @@ const stepTimer = () => {
 
 const resetTimer = () => {
     if (timerState.rafId) cancelAnimationFrame(timerState.rafId);
-    timerState = { taskEl: null, status: "idle", startTime: 0, elapsed: 0, rafId: null };
+    timerState = { taskId: null, taskEl: null, status: "idle", startTime: 0, elapsed: 0, rafId: null };
     drawTimer();
     startBtn.classList.remove("hidden");
     pauseBtn.classList.add("hidden");
@@ -279,8 +338,9 @@ const resetTimer = () => {
     stopBtn.classList.add("hidden");
 };
 
-const openModal = (li, initialElapsed = 0) => {
+const openModal = (taskId, li, initialElapsed = 0) => {
     resetTimer();
+    timerState.taskId = taskId;
     timerState.taskEl = li;
     timerState.elapsed = initialElapsed;
     drawTimer();
@@ -299,6 +359,31 @@ const closeModal = () => {
 
 modalBackdrop.addEventListener("click", closeModal);
 modalClose.addEventListener("click", closeModal);
+
+taskList.addEventListener("click", e => {
+    const li = e.target.closest("li");
+    if (!li) return;
+    const taskId = li.dataset.id;
+    const elapsed = Number(li.dataset.elapsed || "0");
+
+    if (li.dataset.status === "done") {
+        const ok = confirm("任务已完成，是否重新计时？");
+        if (!ok) return;
+        openModal(taskId, li, 0);
+        return;
+    }
+    if (li.dataset.status === "partial") {
+        const choice = prompt("任务部分完成：输入1继续计时，输入2重新计时");
+        if (!choice) return;
+        if (choice === "1") {
+            openModal(taskId, li, elapsed);
+        } else if (choice === "2") {
+            openModal(taskId, li, 0);
+        }
+        return;
+    }
+    openModal(taskId, li, elapsed);
+});
 
 startBtn.addEventListener("click", () => {
     timerState.status = "running";
@@ -327,175 +412,38 @@ resumeBtn.addEventListener("click", () => {
     stepTimer();
 });
 
-stopBtn.addEventListener("click", () => {
+stopBtn.addEventListener("click", async () => {
     const choice = prompt("请输入任务评价：1=已完成, 2=部分完成, 3=未完成");
     if (!choice) return;
     let status = "pending";
     if (choice === "1") status = "done";
     else if (choice === "2") status = "partial";
 
-    if (timerState.taskEl) {
-        const tag = timerState.taskEl.querySelector(".tag.status");
-        tag.textContent = status === "done" ? "已完成" : status === "partial" ? "部分完成" : "未完成";
-        tag.className = `tag status ${status}`;
-        timerState.taskEl.dataset.status = status;
-        timerState.taskEl.dataset.elapsed = String(Math.floor(timerState.elapsed));
-        const timeChip = timerState.taskEl.querySelector(".time-chip");
-        if (timeChip) timeChip.textContent = formatTime(timerState.elapsed);
-        const taskId = timerState.taskEl.dataset.id;
-        if (taskId) {
-            update(ref(db, `users/${currentUserId}/tasks/${taskId}`), {
+    try {
+        await apiRequest(`/tasks/${timerState.taskId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
                 status,
                 elapsed: Math.floor(timerState.elapsed)
-            }).catch(err => alert("保存任务失败：" + err.message));
+            })
+        });
+
+        if (timerState.taskEl) {
+            const tag = timerState.taskEl.querySelector(".tag.status");
+            tag.textContent = status === "done" ? "已完成" : status === "partial" ? "部分完成" : "未完成";
+            tag.className = `tag status ${status}`;
+            timerState.taskEl.dataset.status = status;
+            timerState.taskEl.dataset.elapsed = String(Math.floor(timerState.elapsed));
+            const timeChip = timerState.taskEl.querySelector(".time-chip");
+            if (timeChip) timeChip.textContent = formatTime(timerState.elapsed);
         }
-        sortTasks();
+
+        await loadTasksFromAPI();
+        resetTimer();
+        modal.classList.add("hidden");
+    } catch (err) {
+        alert('保存任务失败：' + err.message);
     }
-    resetTimer();
-    modal.classList.add("hidden");
 });
-
-const sortTasks = () => {
-    const priority = { pending: 1, partial: 2, done: 3 };
-    const items = Array.from(taskList.children);
-    items.sort((a, b) => priority[a.dataset.status] - priority[b.dataset.status]);
-    items.forEach(li => taskList.appendChild(li));
-};
-
-taskList.addEventListener("click", e => {
-    const li = e.target.closest("li");
-    if (!li) return;
-    const elapsed = Number(li.dataset.elapsed || "0");
-    if (li.dataset.status === "done") {
-        const ok = confirm("任务已完成，是否重新计时？");
-        if (!ok) return;
-        openModal(li, 0);
-        return;
-    }
-    if (li.dataset.status === "partial") {
-        const choice = prompt("任务部分完成：输入1继续计时，输入2重新计时");
-        if (!choice) return;
-        if (choice === "1") {
-            openModal(li, elapsed);
-        } else if (choice === "2") {
-            openModal(li, 0);
-        }
-        return;
-    }
-    openModal(li, elapsed);
-});
-
-const createTaskItem = task => {
-    const li = document.createElement("li");
-    li.dataset.status = task.status || "pending";
-    li.dataset.elapsed = String(task.elapsed || 0);
-    li.dataset.id = task.id;
-    const statusText = task.status === "done" ? "已完成" : task.status === "partial" ? "部分完成" : "未完成";
-    li.innerHTML = `<span class="task-title">${task.title}</span><span class="time-chip">${formatTime(
-        task.elapsed || 0
-    )}</span><span class="tag status ${task.status}">${statusText}</span>`;
-    return li;
-};
-
-const openEventDetail = ev => {
-    currentModalEvent = ev;
-    eventModalTitle.textContent = ev.content || "未填写内容";
-    eventModalTime.textContent = `${ev.startLabel} - ${ev.endLabel}`;
-    eventModalLocation.textContent = ev.location || "未填写地点";
-    eventModalNote.textContent = ev.note ? ev.note : "无备注";
-    eventModal.classList.remove("hidden");
-};
-
-const closeEventDetail = () => {
-    currentModalEvent = null;
-    eventModal.classList.add("hidden");
-};
-
-eventModalClose.addEventListener("click", closeEventDetail);
-eventModal.querySelector(".modal-backdrop").addEventListener("click", closeEventDetail);
-
-eventModalEdit.addEventListener("click", () => {
-    if (!currentModalEvent) return;
-    const ev = currentModalEvent;
-    weekdaySelect.value = String(ev.day);
-    startInput.value = ev.startLabel;
-    endInput.value = ev.endLabel;
-    contentInput.value = ev.content || "";
-    locationInput.value = ev.location || "";
-    noteInput.value = ev.note || "";
-    editingEventId = ev.id;
-    showForm();
-    closeEventDetail();
-});
-
-eventModalDelete.addEventListener("click", () => {
-    if (!currentModalEvent || !currentModalEvent.id) return;
-    const ok = confirm("确认删除该事件？");
-    if (!ok) return;
-    remove(ref(db, `users/${currentUserId}/events/${currentModalEvent.id}`)).catch(err =>
-        alert("删除失败：" + err.message)
-    );
-    closeEventDetail();
-});
-
-const subscribeEvents = uid => {
-    if (eventsUnsub) eventsUnsub();
-    const q = query(ref(db, `users/${uid}/events`), orderByChild("start"));
-    eventsUnsub = onValue(
-        q,
-        snap => {
-            const list = [];
-            snap.forEach(child => {
-                const data = child.val();
-                list.push({
-                    id: child.key,
-                    day: Number(data.day),
-                    start: Number(data.start),
-                    end: Number(data.end),
-                    content: data.content,
-                    location: data.location,
-                    note: data.note,
-                    startLabel: data.startLabel,
-                    endLabel: data.endLabel
-                });
-            });
-            events = list;
-            renderEvents();
-            if (!firstEventsLoaded) {
-                firstEventsLoaded = true;
-                if (firstTasksLoaded) loadingOverlay.classList.add("hidden");
-            }
-        },
-        err => alert("加载事件失败：" + err.message)
-    );
-};
-
-const subscribeTasks = uid => {
-    if (tasksUnsub) tasksUnsub();
-    const q = query(ref(db, `users/${uid}/tasks`), orderByChild("createdAt"));
-    tasksUnsub = onValue(
-        q,
-        snap => {
-            taskList.innerHTML = "";
-            snap.forEach(child => {
-                const data = child.val();
-                taskList.appendChild(
-                    createTaskItem({
-                        id: child.key,
-                        title: data.title || "",
-                        status: data.status || "pending",
-                        elapsed: data.elapsed || 0
-                    })
-                );
-            });
-            sortTasks();
-            if (!firstTasksLoaded) {
-                firstTasksLoaded = true;
-                if (firstEventsLoaded) loadingOverlay.classList.add("hidden");
-            }
-        },
-        err => alert("加载任务失败：" + err.message)
-    );
-};
 
 drawTimer();
